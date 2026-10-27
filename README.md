@@ -1,93 +1,147 @@
-# 안심 이어가기 — 모바일신분증 비상 검증 모드
+# 안심 이어가기 — Windows 로컬 독립 시연
 
-가상 발급기관·이용자 지갑·검증자 단말·준비 및 복구 API를 한 프로젝트에서 실행하는 공모전 PoC입니다. 실제 신분증이나 정부 서비스에 연결하지 않습니다.
+가상 발급기관·이용자 지갑·검증자·복구 기록을 같은 브라우저에서 시연하는 공모전 PoC입니다. 기존 React/TypeScript 화면, ECDSA P-256 전자서명, Cloudflare Workers API와 D1 스키마를 재사용합니다. 실제 신분증·정부 서비스·기존 Work 사이트와 연결하지 않습니다.
 
-## 내보내기 기준
+## 준비 프로그램
 
-- 원본 커밋: `7b2275136f491cfe341fce95da35a072beaa3e07`
-- Work Sites로 생성된 **실제 소스코드 기반** React/TypeScript + Vinext + Cloudflare Workers + D1 프로젝트입니다.
-- 별도 사본만 정리했습니다. 원본 Site, 배포 DB, 배포 소스 저장소는 변경하지 않았습니다.
-- 화면 디자인·컴포넌트·서명 검증·API 처리 흐름은 유지했습니다. 내보내기용 변경은 `EXPORT_CHANGES.md`를 확인하세요.
-- 배포 DB의 내용이나 발급 개인키를 내보내지 않습니다. 새 로컬 DB에서 새 테스트 키를 자동 생성합니다.
+- Windows 10/11, PowerShell. 이번 직접 검증은 Windows PowerShell 5.1에서 수행했습니다.
+- Git for Windows 또는 GitHub Desktop. 터미널에서 `git --version`이 동작하도록 Git PATH를 설정하세요.
+- Node.js 24 계열. 이번 검증 버전은 **24.19.0**입니다. 저장소의 최소 선언은 22.13이지만 팀은 24로 통일하세요.
+- **pnpm 11.25.0**. `packageManager`에 고정된 버전을 사용합니다.
+- 브라우저: 최신 Chrome 또는 Edge. 자동 화면 검사는 Chrome에서 수행했습니다.
 
-## Windows 10/11 + PowerShell 준비
-
-**Windows 직접 실행 검증은 하지 못했습니다. Linux에서 동일 Node 기반 빌드·검사·로컬 Workers/D1 실행을 확인했습니다.** Windows 전용 네이티브 바이너리 설치 및 개발 서버 동작은 팀 PC에서 재확인해야 합니다.
-
-1. Node.js 공식 사이트(nodejs.org)에서 **Node.js 24 LTS Windows Installer(.msi)**를 설치합니다. PATH 추가 옵션을 유지한 뒤 PowerShell을 새로 엽니다. 프로젝트의 원본 최소 조건은 Node 22.13이지만 테스트 실행 호환성을 위해 24 사용을 권장합니다.
-2. ZIP을 `C:\dev\ansim-continue`처럼 짧은 경로에 풉니다. `package.json`이 있는 폴더에서 아래 명령을 실행합니다.
+Node 설치 후 PowerShell을 새로 열고 확인합니다. `.cmd` 명령을 사용하면 PowerShell 스크립트 실행 정책을 바꾸지 않아도 됩니다.
 
 ```powershell
-cd C:\dev\ansim-continue
+git --version
 node --version
 npm.cmd --version
 npm.cmd install --global pnpm@11.25.0
 pnpm.cmd --version
-pnpm.cmd install --frozen-lockfile
 ```
 
-PowerShell 실행 정책 오류를 피하도록 `.cmd` 명령을 사용합니다. 시스템 실행 정책을 바꿀 필요는 없습니다. 설치 시 npm 레지스트리 접근이 필요하며 Windows용 workerd 등 네이티브 의존성을 내려받습니다. pnpm의 의존성 빌드 허용 설정은 `pnpm-workspace.yaml`에 포함돼 있습니다. 설치가 차단되면 오류 원인을 재확인하고, 잠금 파일을 임의로 삭제하지 마세요.
+## 처음 Clone하고 실행
 
-## 처음 실행 — 계정 없이 로컬 개발
+아래는 이 변경이 GitHub의 공유 브랜치에 올라간 이후의 절차입니다. 현재 로컬 작업 브랜치는 `codex/review-and-improve`입니다. 외부 배포 연동 미확인으로 Push는 보류하며 공유 전 점검 결과는 [GITHUB_SHARING_REVIEW.md](GITHUB_SHARING_REVIEW.md)를 참조하세요. 변경 전 main에는 실행 설정 누락이 있으므로 팀은 변경이 반영된 브랜치를 사용해야 합니다.
 
 ```powershell
+git clone https://github.com/garcho625/mobileid-sinbun-backend.git
+cd mobileid-sinbun-backend
+git switch codex/review-and-improve
+pnpm.cmd install --frozen-lockfile
 pnpm.cmd test
 pnpm.cmd typecheck
-pnpm.cmd build
+pnpm.cmd lint
 pnpm.cmd db:local
+pnpm.cmd build
 pnpm.cmd start
 ```
 
-터미널이 출력하는 `http://127.0.0.1:8787` 주소를 엽니다. 다른 포트가 출력되면 그 주소를 사용합니다. 종료는 `Ctrl+C`입니다.
+브라우저에서 **http://127.0.0.1:8787/** 에 접속합니다. `start` 하나가 화면과 API를 함께 제공합니다. 별도 Python 서버나 프런트엔드 서버를 추가 실행할 필요가 없습니다. 종료는 해당 터미널에서 `Ctrl+C`입니다.
 
-- `build`: 프런트엔드와 Worker를 `dist/`에 빌드합니다.
-- `db:local`: 생성된 설정으로 로컬 D1 마이그레이션을 적용합니다. 적용 내역을 관리하므로 반복 실행할 수 있습니다. `--local`만 사용합니다.
-- `start`: 로컬 workerd/Wrangler에서 빌드 결과와 D1을 실행합니다.
-- Cloudflare 로그인, 유료 계정, API 토큰, 운영 DB 연결이 필요 없습니다.
-- 환경변수 설정도 필요 없습니다. `.dev.vars.example`은 설명만 있는 빈 템플릿입니다.
-- localhost와 127.0.0.1에서는 Web Crypto를 사용할 수 있습니다. 다른 PC에서 평문 HTTP로 접속하면 암호화 기능이 차단될 수 있습니다. 두 기기 시연은 현재 범위 밖입니다.
+처음 설치에는 npm 레지스트리 인터넷 연결이 필요합니다. Windows용 workerd/esbuild 등이 설치됩니다. 계정 로그인, Cloudflare API 토큰, 운영 DB ID는 필요 없습니다. `.dev.vars.example`은 값이 없는 안내 파일이며 복사하거나 값을 채울 필요가 없습니다.
 
-## 코드를 수정하면서 실행
+`db:local`은 로컬 D1을 생성하고 기존 SQL 마이그레이션을 적용합니다. 빌드 전에 실행할 수 있고, 반복 실행해도 이미 적용한 마이그레이션은 다시 적용하지 않습니다. 각 PC의 `.wrangler/state`에 서로 다른 DB·기관 테스트 키·접수 기록이 생성됩니다. 팀원끼리 이 폴더를 공유하지 마세요.
 
-초기 빌드와 `db:local`을 한 번 실행한 뒤:
+## 코드를 수정하며 실행
+
+의존성 설치와 `db:local`을 완료한 뒤:
 
 ```powershell
 pnpm.cmd dev
 ```
 
-터미널에 출력되는 localhost 주소(기본 5173)를 엽니다. `start`와 `dev`의 로컬 D1은 `.wrangler/state`에 저장됩니다. 종료 후에도 DB는 남고 브라우저의 신분증·요청·미동기화 기록은 새로고침하면 사라집니다.
+개발 주소는 **http://127.0.0.1:5173/** 입니다. 프런트엔드와 Worker API가 함께 실행됩니다. 개발 서버와 빌드 서버는 같은 `.wrangler/state`의 D1을 사용하지만, 시연 때는 하나만 실행하는 것을 권장합니다.
 
-빌드 결과를 확인하려면 `dev`를 종료한 뒤 `pnpm.cmd build`, `pnpm.cmd start`를 실행합니다. DB 스키마를 수정했다면 먼저 `pnpm.cmd db:generate`, `pnpm.cmd build`, `pnpm.cmd db:local` 순으로 진행합니다. 기존 마이그레이션을 수정하지 말고 추가하세요.
+코드를 바꾼 뒤 빌드 결과를 시연하려면 개발 서버를 종료하고 `pnpm.cmd build`, `pnpm.cmd start`를 다시 실행하세요. `start`는 소스 변경을 자동 반영하지 않습니다. 포트가 사용 중이면 기존 서버를 종료하세요. 개발 서버는 포트를 임의로 바꾸지 않도록 설정했습니다.
 
-## 주요 폴더
+## 시연 순서
 
-| 경로 | 역할 |
+1. **가상 발급기관**에서 테스트 신분증 발급 → 검증자 신뢰키·정책 준비.
+2. 상단 연결 스위치를 **연결 차단 중**으로 전환.
+3. **검증자 단말**에서 새 요청 생성.
+4. **이용자 지갑**에서 동의 → 기기 응답 생성.
+5. **검증자 단말**에서 정상 조건으로 로컬 서명 검증. 성공 후 같은 응답으로 다시 검증하면 재사용이 차단됩니다.
+6. 연결을 온라인으로 전환하고 **복구·기록**에서 상태 재확인·기록 동기화.
+7. 필요하면 발급기관 정지 처리 후 다시 동기화하여 불일치 판정을 확인.
+8. 새로고침 후 **복구·기록**에서 저장 기록을 확인.
+
+공식 정책이 아닌 **15분 준비/1시간 만료 실험값**입니다. 로컬 프로세스의 시계 차이를 위해 미래 발급·준비 시각에만 최대 2초 오차를 허용하며, 만료와 15분 경과 제한은 유지합니다. 접수 성공은 출입 승인이 아닙니다. 동의는 버튼 시연이며 실제 생체인증이나 신분 확인이 아닙니다.
+
+## 기록 보존과 로컬 DB 확인
+
+- 기기 개인키·신분증·요청값·동의·재사용 목록은 페이지 메모리에만 있습니다. 새로고침하면 다시 발급·준비해야 합니다.
+- 접수 기록은 브라우저 localStorage에 보관해 미동기화 기록도 새로고침 후 복원합니다. 개인키는 저장하지 않습니다.
+- 서버에 동기화한 기록은 D1에 저장되며, 새 브라우저 세션에서도 조회합니다. 화면은 최근 서버 기록 최대 500건과 브라우저의 대기 기록을 합칩니다.
+- 재발급해도 기존 접수 기록을 지우지 않습니다. 새로고침 후 신분증이 없어도 대기 기록 동기화는 가능합니다.
+- 복구 시 각 기록의 신분증 상태를 서버에서 다시 조회하고, 서버가 판정한 결과를 저장·반환합니다. 기존 접수 ID의 판정도 갱신됩니다.
+- 화면의 기록 시각은 대기 중에는 접수 시각, 서버 저장 후에는 최초 동기화 시각입니다. 원래 현장 시각의 영구 보존 기능은 없습니다.
+- `127.0.0.1:5173`, `127.0.0.1:8787`, `localhost`는 서로 다른 브라우저 저장 공간입니다. 시연 중 주소를 통일하세요. 주소 간 이동 전 미동기화 기록을 서버에 저장하세요.
+
+로컬 D1의 최근 100건을 직접 조회합니다. 이 명령은 개인키를 출력하지 않습니다.
+
+```powershell
+pnpm.cmd db:inspect
+```
+
+DB를 보존한 채 프로그램을 종료·재시작해도 기록은 남습니다. `.wrangler/state`를 삭제하면 키와 발급 이력도 사라집니다. 완전 재초기화가 필요할 때는 서버를 종료하고 이 폴더를 별도로 백업한 뒤 처리하세요. 초기화 후에는 브라우저의 해당 주소 사이트 데이터도 지워야 오래된 대기 기록과 충돌하지 않습니다. 일반 실행에 삭제/리셋은 필요 없습니다.
+
+## 테스트
+
+```powershell
+pnpm.cmd test
+pnpm.cmd typecheck
+pnpm.cmd lint
+pnpm.cmd build
+```
+
+별도 터미널에서 서버를 실행한 상태로 API 통합 검사를 실행합니다. 테스트용 발급·정지·접수 기록이 로컬 DB에 추가됩니다.
+
+```powershell
+pnpm.cmd test:integration
+# 개발 서버 검사 시:
+pnpm.cmd test:integration -- http://127.0.0.1:5173
+```
+
+선택 사항인 실제 Chrome 화면 검사는 별도 검사 도구를 무시 폴더에 설치합니다. 앱 실행에는 필요 없습니다. 프로젝트 package.json/잠금 파일을 변경하지 않습니다.
+
+```powershell
+npm.cmd install --prefix .sites-runtime/browser-tools --no-save --package-lock=false playwright@1.64.1
+pnpm.cmd test:browser
+# 개발 서버 검사 시:
+pnpm.cmd test:browser -- http://127.0.0.1:5173
+```
+
+Chrome이 설치되어 있어야 합니다. 결과·화면 캡처는 `.sites-runtime/qa`에 생성됩니다. 자동 검사는 브라우저 네트워크를 오프라인으로 설정하며 물리적 인터넷 선을 끊는 시험은 아닙니다. 상세 근거는 [VALIDATION.md](VALIDATION.md)에 기록했습니다.
+
+## 설정 분리와 원본 보호
+
+| 파일 | 역할 |
 |---|---|
-| `app/` | React 화면, CSS, API 라우트 |
-| `lib/proof.ts` | ECDSA 키·서명·검증 |
-| `worker/` | Cloudflare Worker 진입점 |
-| `db/`, `drizzle/` | D1 스키마·SQL·Drizzle 메타데이터 |
-| `tests/` | 기존 서명 검증 테스트 9개 |
-| `scripts/` | 빌드·로컬 실행·D1 도구 |
-| `components/`, `hooks/`, `vendor/` | 기존 UI 템플릿·라이선스 자산 |
-| `examples/` | 원본에서 제공한 참고 예제. 현재 서비스 경로가 아님 |
+| `vite.local.config.ts` | 기본 dev/build의 독립 실행 설정. Sites 인증/connector 플러그인 사용 안 함 |
+| `wrangler.local.json` | 로컬 DB placeholder ID, remote:false, 원격 미리보기 비활성 |
+| `scripts/run-local.mjs` | dev/build/start만 허용, 로컬 주소 고정, Cloudflare 자격증명 환경변수 제거 |
+| `scripts/local-db.mjs` | 고정된 --local 마이그레이션·조회만 실행 |
+| `vite.config.ts`, `scripts/run-framework.mjs` | 기존 Work용 구성 보존. 기본 실행 경로에서는 사용 안 함 |
+| `.openai/hosting.json` | 기존 구성의 타입 검사 호환용 최소 DB 이름. project_id·운영 ID·토큰 없음. 로컬 실행은 이 파일을 읽지 않음 |
 
-`package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`을 함께 관리합니다. Python 백엔드는 없으므로 `requirements.txt`는 필요 없습니다. 사용하지 않는 템플릿 의존성도 동작 보존을 위해 이번 내보내기에서 대규모 제거하지 않았습니다.
+누락된 `.openai/hosting.json`은 내보내기 파일 목록에는 있으나 Clone의 Git 추적 파일에는 없었습니다. 숨김 파일 업로드 누락으로 추정하며 당시 업로드 작업 자체를 확인한 것은 아닙니다.
 
-## 팀 공동 개발
+기존 Work 사이트·Workers·운영 D1은 조회하거나 변경하지 않았습니다. 저장소에는 배포 GitHub Actions나 활성 Git hook이 없었습니다. GitHub 서버에 설정된 외부 자동 배포 연동은 로컬 파일만으로 확인할 수 없으며 확인하지 않았습니다. Push도 하지 않았습니다.
 
-GitHub 저장소는 아직 만들거나 업로드하지 않았습니다. ZIP을 푼 뒤 이 폴더 내용 전체(숨김 설정 포함)를 저장소 루트로 사용하세요. 개인별 로컬 DB는 서로 공유되지 않습니다. 코드를 공유해도 테스트 키·접수 이력은 각 PC에서 별도로 생성됩니다.
+## 4명 공동 개발
 
-4명은 화면·API/DB·검증 로직·테스트/문서로 작업을 나눌 수 있습니다. 작업 브랜치별로 변경하고 PR에서 테스트·타입 검사·빌드를 확인하세요. `.git`, `node_modules`, `dist`, `.wrangler`, `.sites-runtime`, 실제 환경변수·키·DB는 올리지 않습니다. 제공한 `FILES.txt`가 ZIP 내부 파일 목록입니다.
+공유 브랜치에서 각자 작업 브랜치를 만들고 화면·API/DB·서명 로직·테스트/문서로 역할을 나눌 수 있습니다. main 원본은 유지하며 통합할 브랜치는 팀에서 정하세요. PR 검토 전에 test/typecheck/lint/build를 확인하세요. DB 스키마 변경 시 새 마이그레이션을 추가하고 팀원 각자가 `pnpm.cmd db:local`을 실행합니다.
 
-이 사본은 원본 Site의 프로젝트 ID를 제거해 연결을 끊었습니다. Cloudflare나 Sites에 다시 배포하려면 별도 배포 설정과 접근 제어가 필요합니다. GitHub 업로드만으로 웹서비스가 배포되는 것은 아닙니다.
+공유할 항목은 소스, 설정의 placeholder, 문서, 잠금 파일입니다. `.gitignore`가 node_modules, 빌드, 로컬 DB, 런타임 캐시, 실제 환경파일·키를 제외합니다. 실제 키·DB를 Git이나 메신저로 공유하지 않습니다. 커밋 전 `git status`와 `git diff --cached`로 포함 파일을 확인하세요.
 
-## 관련 문서
+## 흔한 실행 문제와 남은 범위
 
-- `ARCHITECTURE.md`: 데이터 흐름과 DB
-- `API.md`: API 계약
-- `DEMO_GUIDE.md`: 시연 순서
-- `LIMITATIONS.md`: 실제 구현·모의 기능·한계
-- `VALIDATION.md`: 검증 결과와 미검증 항목
-- `EXPORT_CHANGES.md`: 원본과 내보내기 사본의 차이
-- `SECURITY_SCAN.md`: 포함·제외 및 민감정보 검사
+- `git`/`pnpm.cmd`를 찾지 못함: 설치와 PATH를 확인하고 PowerShell을 새로 여세요.
+- 의존성 설치 연결 오류: npm 레지스트리 접근을 확인하세요. 잠금 파일 삭제나 보안 정책 해제 대신 오류 원인을 확인하세요.
+- `no such table`: `pnpm.cmd db:local`을 먼저 실행하세요.
+- `start` 빌드 설정 없음: `pnpm.cmd build` 후 실행하세요.
+- `EPERM`/보안 제품 차단: 이번 Codex 샌드박스에서는 별도 실행 승인이 필요했습니다. 일반 PowerShell에서도 재현되면 보안 제품/실행 권한을 확인하세요. 관리자 실행을 기본 요건으로 두지 않습니다.
+- localhost 외의 평문 HTTP 주소: Web Crypto가 차단될 수 있습니다. 두 PC 간 LAN 시연은 현재 지원 범위가 아닙니다.
+
+연결 스위치는 모의 차단이며, 정지 버튼은 그 스위치를 우회해 실제 로컬 API를 호출합니다. 페이지를 불러온 뒤 서버 없이 서명 연산은 가능하지만 오프라인 새로고침은 지원하지 않습니다. 운영 인증·역할 분리·키 보관·신뢰 시각·서명된 감사 기록·동시 탭의 대기열 조정은 미구현입니다. 테스트용 localhost 시연 범위로 사용하세요.

@@ -1,5 +1,7 @@
 # 내보내기 변경 기록
 
+> 이 문서는 최초 ZIP 내보내기 이력입니다. 이후 Windows 로컬 독립 실행 변경 목록은 LOCAL_DEMO_RESULT.md, 현재 실행 방법은 README.md를 참조하세요.
+
 기준: `7b2275136f491cfe341fce95da35a072beaa3e07`의 git archive. 원본 폴더 및 배포는 수정하지 않았습니다.
 
 | 파일 | 변경 |

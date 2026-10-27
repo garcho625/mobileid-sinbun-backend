@@ -1,38 +1,31 @@
-# API
+# 로컬 API
 
-모든 기능은 `POST /api/demo`의 JSON `action`으로 구분합니다. `Content-Type: application/json`을 사용합니다. 아래는 가상 데이터 예시이며 호출마다 생성되는 키나 서명은 파일에 저장하지 않습니다.
+Windows 로컬 시연용 `POST /api/demo`입니다. Content-Type은 application/json이며 Origin이 있으면 요청 주소와 같아야 합니다. 실제 서비스용 인증/권한 분리는 없습니다. 서버는 기본 127.0.0.1에만 연결됩니다.
 
-| action | 요청의 추가 필드 | 성공 응답 |
+| action | 입력 | 응답 |
 |---|---|---|
-| `prepare` | 없음 | `{publicKey: JWK, prepared: epochMs}` |
-| `issue` | `deviceKey`: ECDSA 기기 공개 JWK | `{credential: {payload, signature}}` |
-| `status` | `id`: 테스트 증명정보 ID | `{status: "active" 또는 "stopped" 또는 "unknown", checked: epochMs}` |
-| `stop` | `id`: 테스트 증명정보 ID | 정지 처리 후 status와 동일한 형식 |
-| `sync` | `records`: 접수 배열 | `{saved: number}` |
+| prepare | 없음 | publicKey(JWK), prepared(ms) |
+| issue | deviceKey: 유효한 P-256 공개 JWK. d 속성 금지 | credential: payload + signature |
+| status | id: 발급 ID | status: active/stopped/unknown, checked(ms) |
+| stop | id: 발급 ID | 정지 후 status와 같은 응답 |
+| sync | records: 최대 100개, 각 id/credential/result | saved: 확인한 건수, records: 저장된 행 |
+| records | 없음 | records: 최근 최대 500개, hasMore |
 
-## 필드
+credential.payload는 id, 가상 name, deviceKey, issued, expires를 포함합니다. 서명은 JSON.stringify(payload)의 UTF-8 바이트에 대한 ECDSA P-256/SHA-256 서명 Base64이며 공식 신분증 포맷이 아닙니다.
 
-`credential.payload`: `id`(서버 생성 UUID), `name`("테스트 방문자"), `deviceKey`(기기 공개 JWK), `issued`(ms), `expires`(발급 1시간 후 ms).
+sync는 배열 전체를 검증한 후 D1 batch로 기록합니다. 미등록 발급 ID를 거절하고, 기존 접수 ID를 다른 발급 ID로 바꾸는 요청도 거절합니다. 클라이언트 result를 복구 판정으로 신뢰하지 않고 각 발급 ID의 현재 상태를 조회해 결과를 저장합니다. 같은 ID의 재동기화는 결과를 갱신하고 최초 저장 시각을 유지합니다. 클라이언트 서명 증거 자체를 서버가 재검증하는 기능은 없으므로 운영용 감사 기록이 아닙니다.
 
-`signature`: JSON.stringify(payload)의 UTF-8 바이트를 ECDSA P-256/SHA-256으로 서명한 바이트의 Base64. JWT/JWS나 공식 모바일신분증 포맷이 아닙니다.
+records의 created는 최초 서버 동기화 시각입니다. 원래 현장 접수 시각은 별도 영구 보관하지 않습니다. 기록 조회 응답에 개인키는 포함하지 않습니다.
 
-`sync.records`의 각 행: `{id: "가상-접수-ID", credential: "가상-증명-ID", result: "제한 접수 완료"}`. 최대 100개만 처리하고, 각 필드가 문자열인 행만 INSERT OR IGNORE 합니다. `saved`는 입력에서 잘라낸 행 수이므로 실제 신규 삽입 건수와 다를 수 있습니다. 이 부분은 원본 동작을 보존했습니다.
-
-## PowerShell API 확인 예시
-
-먼저 로컬 서버를 실행하고, 출력 포트가 다르면 주소를 수정합니다.
+- 400: JSON/스키마/키/ID 오류, 알 수 없는 action, 미등록 발급 기록, 100건 초과.
+- 403: 다른 Origin 요청.
+- 409: 같은 접수 ID의 발급 ID 변경.
+- 413: 요청 본문 128KiB 초과.
+- 500: DB 등 서버 처리 실패. 응답에는 상세 내부 오류를 포함하지 않습니다.
 
 ```powershell
-$body = @{ action = 'prepare' } | ConvertTo-Json
+$body = @{ action = 'records' } | ConvertTo-Json
 Invoke-RestMethod -Uri 'http://127.0.0.1:8787/api/demo' -Method Post -ContentType 'application/json' -Body $body
 ```
 
-`issue`는 키 생성을 포함하므로 이용자 화면에서 발급하는 것이 쉽습니다. 테스트에 사용한 가상 ID를 `status`로 조회하면 미등록 시 `unknown`이 나옵니다.
-
-## 오류 및 보안 범위
-
-- 400: 미지원 action, 기기 공개키의 기초 조건 미충족, 상태 조회 ID가 문자열이 아님.
-- 500: JSON 처리·키 import·DB 등 서버 오류. 원본은 세부 오류를 공개하지 않습니다.
-- 서버 자체의 사용자/역할별 권한 검사, 입력 크기 제한, 상세 JSON 스키마 검증, rate limit은 없습니다. 배포 Site의 외곽 로그인 보호와 API 자체 권한은 구분해야 합니다.
-- `sync`는 클라이언트 제출 결과를 신뢰하고 서명을 재검증하지 않습니다. 감사 증거로 쓸 수 없습니다.
-- 로컬 개발 API를 인터넷에 공개하지 마세요. 운영으로 확장하기 전 기관/이용자/검증자 권한 분리와 로그 무결성을 재검토해야 합니다.
+운영 확장 시 API 인증/인가, rate limit, 요청 스트림의 선제적 크기 제한, 감사 증거 및 오류 관측을 추가해야 합니다. 현재 본문 크기 검사는 본문을 읽은 후 적용됩니다.

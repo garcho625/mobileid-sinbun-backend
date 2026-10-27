@@ -1,0 +1,98 @@
+import assert from 'node:assert/strict';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+
+const modulePath = process.env.ANSIM_PLAYWRIGHT_MODULE;
+const { chromium } = await import(modulePath ? pathToFileURL(modulePath).href : new URL('../.sites-runtime/browser-tools/node_modules/playwright/index.mjs', import.meta.url).href);
+const base = new URL(process.argv[2] || 'http://127.0.0.1:8787');
+assert(['127.0.0.1', 'localhost'].includes(base.hostname) && base.protocol === 'http:');
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+const page = await context.newPage();
+const errors = [];
+page.on('pageerror', e => errors.push(e.message));
+let requests = 0;
+let offlineApiRequests;
+page.on('request', r => { if (new URL(r.url()).pathname === '/api/demo') requests++; });
+const tab = name => page.getByRole('button', { name: new RegExp(name) }).click();
+const notice = text => page.getByRole('status').filter({ hasText: text }).waitFor();
+const local = () => page.evaluate(() => JSON.parse(localStorage.getItem('ansim-demo-records-v1') || '[]'));
+const records = () => page.evaluate(async () => (await (await fetch('/api/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'records' }) })).json()).records);
+async function issueAndPrepare() {
+  await tab('가상 발급기관');
+  await page.getByRole('button', { name: '테스트 신분증 발급', exact: true }).click();
+  await notice('가상 발급 완료');
+  await page.getByRole('button', { name: '검증자 신뢰키 · 정책 준비', exact: true }).click();
+  await notice('15분 시험 정책');
+}
+async function requestAndRespond() {
+  await tab('검증자 단말');
+  await page.getByRole('button', { name: '새 검증 요청 만들기' }).click();
+  await tab('이용자 지갑');
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: '동의하고 기기 응답 생성' }).click();
+  await notice('기기 키로 현재 요청에 서명');
+  await tab('검증자 단말');
+}
+try {
+  await page.goto(base.origin, { waitUntil: 'networkidle' });
+  assert(await page.evaluate(() => !!crypto.subtle && isSecureContext));
+  await issueAndPrepare();
+  await page.getByRole('button', { name: /● 온라인/ }).click();
+  await context.setOffline(true);
+  const before = requests;
+  await requestAndRespond();
+  await page.getByRole('button', { name: '로컬 서명 · 업무 조건 검증' }).click();
+  await notice('비상 방문자 접수 완료');
+  assert.equal(await page.locator('.check .pass').count(), 6);
+  offlineApiRequests = requests - before;
+  assert.equal(offlineApiRequests, 0, 'Offline proof must not call the server');
+  const first = (await local()).find(r => !r.synced);
+  assert(first);
+  await page.getByRole('button', { name: '로컬 서명 · 업무 조건 검증' }).click();
+  await notice('처리 차단');
+  assert((await page.locator('.check .fail').count()) >= 1);
+  await context.setOffline(false);
+  await page.getByRole('button', { name: /● 연결 차단 중/ }).click();
+  await tab('복구 · 기록');
+  await page.getByRole('button', { name: '상태 재확인 · 기록 동기화' }).click();
+  await notice('로컬 서버에 동기화');
+  assert.equal((await records()).find(r => r.id === first.id).result, '복구 확인 · 상태 일치');
+  await page.getByRole('button', { name: '발급기관 정지 처리 (실험)' }).click();
+  await notice('테스트 증명정보를 정지');
+  await page.getByRole('button', { name: '상태 재확인 · 기록 동기화' }).click();
+  await notice('정지 상태 확인');
+  assert.equal((await records()).find(r => r.id === first.id).result, '상태 불일치 · 담당자 검토');
+  await page.reload({ waitUntil: 'networkidle' });
+  await tab('복구 · 기록');
+  await page.getByText('상태 불일치 · 담당자 검토', { exact: true }).first().waitFor();
+  assert((await local()).some(r => r.id === first.id));
+  // Issue again without dropping old records, then preserve an unsynced record through reload.
+  await issueAndPrepare();
+  await requestAndRespond();
+  await page.getByRole('button', { name: '로컬 서명 · 업무 조건 검증' }).click();
+  await notice('비상 방문자 접수 완료');
+  const pending = (await local()).find(r => !r.synced);
+  assert(pending && pending.id !== first.id);
+  await page.reload({ waitUntil: 'networkidle' });
+  await tab('복구 · 기록');
+  assert((await local()).some(r => r.id === pending.id && !r.synced));
+  await page.getByRole('button', { name: '상태 재확인 · 기록 동기화' }).click();
+  await notice('로컬 서버에 동기화');
+  assert.equal((await records()).find(r => r.id === pending.id).result, '복구 확인 · 상태 일치');
+  mkdirSync('.sites-runtime/qa', { recursive: true });
+  await page.screenshot({ path: '.sites-runtime/qa/desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: '.sites-runtime/qa/mobile.png', fullPage: true });
+  const fresh = await browser.newContext();
+  const freshPage = await fresh.newPage();
+  await freshPage.goto(base.origin, { waitUntil: 'networkidle' });
+  await freshPage.getByRole('button', { name: /복구 · 기록/ }).click();
+  await freshPage.getByText('복구 확인 · 상태 일치', { exact: true }).first().waitFor();
+  const restored = await freshPage.evaluate(() => JSON.parse(localStorage.getItem('ansim-demo-records-v1') || '[]'));
+  assert(restored.some(r => r.id === pending.id), 'Fresh browser must restore D1 records');
+  await fresh.close();
+  assert.deepEqual(errors, []);
+  writeFileSync('.sites-runtime/qa/browser-result.json', JSON.stringify({ base: base.origin, passed: true, browser: browser.version(), offlineApiRequests, firstRecord: first.id, pendingRecord: pending.id, pageErrors: errors }, null, 2));
+  console.log('PASS: Chrome UI issuance, preparation, browser offline signature (zero API calls), replay block, recovery, stop mismatch, D1 query, reload/pending recovery, fresh-browser restore, desktop/mobile screenshots');
+} finally { await browser.close(); }

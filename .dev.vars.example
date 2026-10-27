@@ -1,0 +1,2 @@
+# Local demo needs no environment variables or credentials.
+# Do not add production Cloudflare tokens, database IDs, or private keys.

@@ -7,14 +7,17 @@
   },
   "scripts": {
     "install:ci": "pnpm install --frozen-lockfile",
-    "dev": "node scripts/run-framework.mjs dev",
-    "build": "node scripts/run-framework.mjs build",
-    "start": "node --import ./scripts/sites-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config dist/server/wrangler.json --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
+    "dev": "node scripts/run-local.mjs dev",
+    "build": "node scripts/run-local.mjs build",
+    "start": "node scripts/run-local.mjs start",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "test": "node --experimental-strip-types tests/proof.mjs",
+    "test": "node --experimental-strip-types tests/proof.mjs && node --experimental-strip-types tests/clock.mjs",
     "typecheck": "tsc --noEmit --incremental false",
-    "db:local": "node scripts/local-d1.mjs"
+    "db:local": "node scripts/local-db.mjs migrate",
+    "db:inspect": "node scripts/local-db.mjs inspect",
+    "test:integration": "node --experimental-strip-types tests/local-api.mjs",
+    "test:browser": "node tests/local-browser.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

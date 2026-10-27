@@ -1,0 +1,16 @@
+{
+  "name": "ansim-local-demo",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "secrets": { "required": [] },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "ansim-local-demo",
+    "database_id": "00000000-0000-4000-8000-000000000000",
+    "migrations_dir": "drizzle",
+    "remote": false
+  }]
+}

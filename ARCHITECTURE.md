@@ -1,33 +1,29 @@
-# 시스템 구조
+# 로컬 독립 실행 구조
 
-## 구성과 실행
+React/TypeScript 화면과 기존 Worker/D1을 재사용합니다. Python 백엔드와 별도 프런트엔드를 추가하지 않았습니다. 하나의 브라우저가 발급기관·지갑·검증자·복구 역할을 전환합니다.
 
-React 19 + TypeScript 화면을 Vinext/Vite로 빌드하고, Cloudflare Worker가 HTML·정적 파일·`POST /api/demo`를 제공합니다. 서버 데이터는 Cloudflare D1(SQLite 계열)에 저장합니다. FastAPI 서버는 없습니다.
+```text
+pnpm dev   → scripts/run-local.mjs → vite.local.config.ts → 127.0.0.1:5173
+pnpm build → 같은 설정 → dist/client + dist/server
+pnpm start → 로컬 빌드 검사 → Wrangler dev --local → 127.0.0.1:8787
 
-하나의 브라우저에서 가상 발급기관·이용자·검증자·복구 화면을 전환합니다. 화면을 분리한 실제 두 기기 시스템은 아닙니다. `worker/index.ts`의 connector 래퍼, `app/chatgpt-auth.ts`, 관련 lib는 기존 템플릿 코드이며 현재 비상 검증 흐름에서 외부 앱 도구를 호출하지 않습니다. 로컬 인증 모의 기능도 운영용 사용자 인증이 아닙니다.
+브라우저 → /api/demo → worker/index.ts → Vinext → app/api/demo/route.ts → env.DB
+브라우저 → lib/proof.ts → Web Crypto 로컬 서명/검증 (네트워크 호출 없음)
+```
 
-## 평상시 준비
+`wrangler.local.json`은 DB 바인딩과 placeholder UUID만 가집니다. remote:false, remoteBindings:false로 원격 바인딩을 사용하지 않습니다. 기본 dev/build는 원본 Sites 플러그인·인증·connector preview를 로드하지 않습니다. 원본 `vite.config.ts` 및 실행 도구는 보존했습니다. `.openai/hosting.json`에는 project_id·운영 DB ID가 없으며 로컬 실행은 이 파일을 읽지 않습니다.
 
-1. 브라우저가 기기용 ECDSA P-256 키 쌍을 생성합니다.
-2. `/api/demo`의 `issue`가 기기 공개키·가상 이름·ID·발급/만료 시각에 기관 키로 서명합니다.
-3. 기관 키 쌍은 새 DB에서 최초 사용 시 생성해 `settings`에 저장합니다. 개인키는 서버에만 남습니다.
-4. `prepare`가 기관 공개키와 준비 시각을 반환합니다. 15분 정책은 클라이언트 코드에 고정돼 있으며 서버가 서명한 정책 파일은 아닙니다.
+`scripts/local-db.mjs`는 빌드와 독립적으로 기존 drizzle SQL을 마이그레이션합니다. DB는 checkout별 `.wrangler/state`에 생성되며 각 PC에서 서로 다른 기관 테스트 키를 생성합니다. dev/start가 같은 DB를 사용합니다.
 
-## 비상 검증
+| 테이블 | 내용 |
+|---|---|
+| settings(id,value) | issuer 행에 가상 기관 키 JWK JSON, 발급 UUID별 active/stopped |
+| records(id,credential,result,created) | 접수 ID, 가상 발급 ID, 서버 복구 판정, 최초 동기화 시각 |
 
-검증자 화면이 `crypto.randomUUID()`로 요청값을 생성합니다. 동의 버튼이 기기 개인키를 이용해 요청값과 증명정보 ID에 서명합니다. 같은 페이지 메모리로 응답을 전달하고 `lib/proof.ts`가 기관 서명, 기기 응답, 요청값·ID 일치, 재사용, 만료, 준비 최신성, 업무 종류를 검사합니다. 이 검증 과정은 서버를 호출하지 않습니다. 처리 성공 시 미동기화 접수 기록을 브라우저 메모리에 추가합니다.
+기관 개인키는 로컬 테스트 DB에 평문으로 남습니다. 브라우저 기기 개인키는 추출 가능한 JWK로 메모리에만 있으며 서버로 전송하지 않습니다. 운영 수준의 키 보호는 아닙니다.
 
-## 복구
+검증 시 기관 서명, 요청별 기기 서명·ID·nonce·seen, 만료, 양측 준비 15분, visit 업무, 시험 시각을 확인합니다. 로컬 Worker/Node 간 수 ms 차이가 재현돼 발급·준비 시각의 미래 오차만 최대 2초 허용합니다. 만료와 15분 최대 경과 제한은 엄격히 유지합니다. 신뢰 시간 확보를 구현한 것은 아닙니다.
 
-`status`로 현재 테스트 상태를 조회하고 `sync`로 최소 기록을 DB에 저장합니다. 화면은 상태 일치·불일치를 표시하지만 서버에 복구 판정/상태 조회 결과를 별도 영구 저장하지는 않습니다. 이미 처리된 접수를 되돌리는 기능은 없습니다.
+접수 기록은 localStorage의 ansim-demo-records-v1에 저장하며 개인키·증명정보·요청값은 저장하지 않습니다. 페이지 로드 시 로컬 대기열과 서버 최근 500건을 합칩니다. 복구는 100건씩 서버에 보내고 각 배치 저장 응답을 확인한 후 synced로 표시합니다. 재발급으로 기록을 삭제하지 않습니다. 새로고침 후에도 신분증 없이 대기 기록 동기화가 가능합니다.
 
-## DB
-
-| 테이블 | 컬럼 | 내용 |
-|---|---|---|
-| `settings` | `id`, `value` | `issuer` 행의 테스트 키 쌍 JSON, 증명정보 ID별 active/stopped 상태 |
-| `records` | `id`, `credential`, `result`, `created` | 접수 ID, 테스트 증명정보 ID, 전송된 결과, 서버 동기화 시각(ms) |
-
-`records.created`는 원래 현장 접수 시각이 아니라 저장 시각입니다. `sync`는 같은 접수 ID를 재전송하면 무시하므로 결과를 갱신하는 API가 아닙니다. 브라우저 기록 목록은 DB에서 읽는 목록이 아닙니다. 명시적인 서버 기록 조회 API는 아직 없습니다.
-
-스키마는 `db/schema.ts`, 초기 생성 SQL은 `drizzle/0000_sudden_the_hood.sql`에 있습니다. 로컬 DB는 `.wrangler/state` 아래, 배포 DB는 Sites가 제공한 D1에 있으며 서로 분리됩니다. ZIP에는 어느 쪽의 DB 내용도 포함하지 않습니다.
+브라우저 저장은 origin별입니다. 개발/빌드 포트와 localhost/127.0.0.1 간에는 대기열을 공유하지 않습니다. 동기화된 D1 기록은 같은 checkout의 두 서버에서 조회할 수 있습니다. 여러 탭의 동시 대기열 편집·OS 시계 조작·키 회전·정지 목록의 오프라인 배포는 지원하지 않습니다.
