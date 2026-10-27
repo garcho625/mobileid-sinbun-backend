@@ -22,12 +22,15 @@ pnpm.cmd --version
 
 ## 처음 Clone하고 실행
 
-아래는 이 변경이 GitHub의 공유 브랜치에 올라간 이후의 절차입니다. 현재 로컬 작업 브랜치는 `codex/review-and-improve`입니다. 외부 배포 연동 미확인으로 Push는 보류하며 공유 전 점검 결과는 [GITHUB_SHARING_REVIEW.md](GITHUB_SHARING_REVIEW.md)를 참조하세요. 변경 전 main에는 실행 설정 누락이 있으므로 팀은 변경이 반영된 브랜치를 사용해야 합니다.
+GitHub의 기존 공유 브랜치 `codex/review-and-improve`에는 기본 버전 `7770e7dc5a7404f144f456f7f21dcc77f7ae946d`가 올라가 있습니다. **최종 P1 수정본의 공유 대상은 `codex/fix-audit-p1`**입니다. 기존 개선 브랜치에는 이번 수정을 합치지 않습니다. 최종 파일 비교·Commit/Push 판단은 [FINAL_SHARING_REVIEW.md](FINAL_SHARING_REVIEW.md)와 작업 완료 보고를 확인하세요. 외부 자동 배포 연결이 확인되기 전에는 Push를 보류합니다.
+
+기본 브랜치 main에는 실행 설정 누락이 있으므로 처음부터 최종 브랜치를 지정합니다. 기존 폴더가 main일 수 있으며, main에는 .gitignore도 없어 로컬 DB가 미추적 파일로 보일 수 있습니다. 기존 변경/DB를 보존하려면 아래처럼 **새 폴더에 Clone**하세요. 아래 명령은 P1 브랜치의 원격 Push가 확인된 뒤 사용합니다. 아직 원격에 없으면 Clone이 실패하므로 기존 개선 브랜치를 최종 수정본으로 오인하지 마세요. main에서 일괄 스테이징하거나 기존 폴더를 덮어쓰지 않습니다. [GITHUB_SHARING_REVIEW.md](GITHUB_SHARING_REVIEW.md)는 과거 Push 전 기록입니다.
 
 ```powershell
-git clone https://github.com/garcho625/mobileid-sinbun-backend.git
-cd mobileid-sinbun-backend
-git switch codex/review-and-improve
+git clone --branch codex/fix-audit-p1 --single-branch https://github.com/garcho625/mobileid-sinbun-backend.git mobileid-sinbun-demo
+cd mobileid-sinbun-demo
+git branch --show-current
+git rev-parse HEAD
 pnpm.cmd install --frozen-lockfile
 pnpm.cmd test
 pnpm.cmd typecheck
@@ -42,6 +45,8 @@ pnpm.cmd start
 처음 설치에는 npm 레지스트리 인터넷 연결이 필요합니다. Windows용 workerd/esbuild 등이 설치됩니다. 계정 로그인, Cloudflare API 토큰, 운영 DB ID는 필요 없습니다. `.dev.vars.example`은 값이 없는 안내 파일이며 복사하거나 값을 채울 필요가 없습니다.
 
 `db:local`은 로컬 D1을 생성하고 기존 SQL 마이그레이션을 적용합니다. 빌드 전에 실행할 수 있고, 반복 실행해도 이미 적용한 마이그레이션은 다시 적용하지 않습니다. 각 PC의 `.wrangler/state`에 서로 다른 DB·기관 테스트 키·접수 기록이 생성됩니다. 팀원끼리 이 폴더를 공유하지 마세요.
+
+P1 수정 버전을 받았을 때 기존 로컬 DB에도 `pnpm.cmd db:local`을 다시 실행해야 합니다. 새 마이그레이션은 기존 테이블/기록을 보존하고 접수 ID의 신분증 귀속 변경을 막는 DB 트리거를 추가합니다. 과거 잘못 저장된 복구 판정은 정상 기록 재동기화 시 현재 상태로 갱신됩니다.
 
 ## 코드를 수정하며 실행
 
@@ -103,6 +108,14 @@ pnpm.cmd test:integration
 pnpm.cmd test:integration -- http://127.0.0.1:5173
 ```
 
+P1 회귀 검사에는 동일 ID 중복의 고유 저장 건수, 재전송 멱등성, 다른 신분증 충돌 409, 정지 판정, 동시 충돌 및 배치 전체 취소가 포함됩니다. `pnpm.cmd test`는 기존 13개 검사와 SQLite 메모리 DB의 마이그레이션/귀속 제약 검사를 실행합니다.
+
+Windows Vite 파일 접근 회귀 검사는 `pnpm.cmd dev`를 실행한 별도 터미널에서 아래 명령으로 수행합니다. 가짜 표식 `.key` 파일만 잠시 생성하고 정리하며 실제 개인키를 읽지 않습니다. ADS와 사용할 수 있는 8.3 별칭 접근 차단을 검사합니다.
+
+```powershell
+pnpm.cmd test:vite-security
+```
+
 선택 사항인 실제 Chrome 화면 검사는 별도 검사 도구를 무시 폴더에 설치합니다. 앱 실행에는 필요 없습니다. 프로젝트 package.json/잠금 파일을 변경하지 않습니다.
 
 ```powershell
@@ -127,7 +140,7 @@ Chrome이 설치되어 있어야 합니다. 결과·화면 캡처는 `.sites-run
 
 누락된 `.openai/hosting.json`은 내보내기 파일 목록에는 있으나 Clone의 Git 추적 파일에는 없었습니다. 숨김 파일 업로드 누락으로 추정하며 당시 업로드 작업 자체를 확인한 것은 아닙니다.
 
-기존 Work 사이트·Workers·운영 D1은 조회하거나 변경하지 않았습니다. 저장소에는 배포 GitHub Actions나 활성 Git hook이 없었습니다. GitHub 서버에 설정된 외부 자동 배포 연동은 로컬 파일만으로 확인할 수 없으며 확인하지 않았습니다. Push도 하지 않았습니다.
+기존 Work 사이트·Workers·운영 D1은 조회하거나 변경하지 않았습니다. 기준 커밋에는 배포 GitHub Actions나 활성 Git hook이 없었습니다. GitHub 서버에 설정된 외부 자동 배포 연동은 미확인입니다. 기본 실행 버전은 이미 원격에 있지만 이번 P1 수정 작업에서는 Push하지 않습니다.
 
 ## 4명 공동 개발
 

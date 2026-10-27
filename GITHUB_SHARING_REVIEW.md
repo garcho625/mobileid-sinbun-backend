@@ -1,5 +1,7 @@
 # GitHub 공유 전 점검 — 2026-10-27
 
+> 과거 Push 전 점검 기록입니다. 기본 버전 7770e7d는 이후 원격 codex/review-and-improve에 반영됐습니다. P1 수정 검증은 P1_FIX_RESULT.md, 최종 공유 준비와 Commit/Push 판단은 FINAL_SHARING_REVIEW.md 및 작업 완료 보고를 참조하세요.
+
 대상: garcho625/mobileid-sinbun-backend, codex/review-and-improve. 사용자가 로컬 화면 실행을 확인한 뒤 GitHub 공유 전 검토와 조건부 Push를 요청했다.
 
 ## 판정

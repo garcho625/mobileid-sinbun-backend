@@ -14,7 +14,6 @@ async function issuer(db: D1Database): Promise<KeyPair> {
   if (!r) throw Error('issuer unavailable');
   return JSON.parse(r.value) as KeyPair;
 }
-const resultFor = (status?: string) => status === 'active' ? '복구 확인 · 상태 일치' : status === 'stopped' ? '상태 불일치 · 담당자 검토' : '상태 미확인 · 담당자 검토';
 
 export async function POST(req: Request) {
   try {
@@ -55,25 +54,37 @@ export async function POST(req: Request) {
     }
     if (b.action === 'sync') {
       if (!Array.isArray(b.records) || b.records.length > 100 || !b.records.every(r => object(r) && id(r.id) && id(r.credential) && typeof r.result === 'string' && r.result.length <= 200)) return json({ error: '접수 배열은 유효한 기록 최대 100건이어야 합니다.' }, 400);
-      const records: DemoRecord[] = [];
+      const records = new Map<string, { id: string; credential: string }>();
       for (const r of b.records as { id: string; credential: string }[]) {
+        const duplicate = records.get(r.id);
+        if (duplicate && duplicate.credential !== r.credential) return json({ error: '같은 접수 ID에 다른 증명정보를 지정할 수 없습니다.' }, 409);
+        records.set(r.id, { id: r.id, credential: r.credential });
+      }
+      for (const r of records.values()) {
         const s = await db.prepare('SELECT value FROM settings WHERE id=? AND id<>?').bind(r.credential, 'issuer').first<{ value: string }>();
         if (!s) return json({ error: '발급 이력이 없는 접수입니다.' }, 400);
         const existing = await db.prepare('SELECT credential FROM records WHERE id=?').bind(r.id).first<{ credential: string }>();
         if (existing && existing.credential !== r.credential) return json({ error: '접수 ID가 다른 증명정보에 사용됐습니다.' }, 409);
-        records.push({ id: r.id, credential: r.credential, result: resultFor(s.value), created: Date.now() });
       }
-      // Validate all rows before the transactional D1 write batch.
-      if (records.length) await db.batch(records.map(r => db.prepare('INSERT INTO records(id,credential,result,created) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET result=excluded.result').bind(r.id, r.credential, r.result, r.created)));
-      const saved: DemoRecord[] = [];
-      for (const r of records) {
-        const stored = await db.prepare('SELECT id,credential,result,created FROM records WHERE id=?').bind(r.id).first<DemoRecord>();
-        if (stored) saved.push(stored);
-      }
+      // D1 batches are transactional. The migration's immutable-credential trigger
+      // rejects conflicting concurrent inserts/updates and rolls back the batch.
+      // Read status inside the write, and return its actual rows, not input count.
+      const batches = records.size ? await db.batch<DemoRecord>([...records.values()].map(r => db.prepare(`
+        INSERT INTO records(id,credential,result,created)
+        SELECT ?, id, CASE value
+          WHEN 'active' THEN '복구 확인 · 상태 일치'
+          WHEN 'stopped' THEN '상태 불일치 · 담당자 검토'
+          ELSE '상태 미확인 · 담당자 검토' END, ?
+        FROM settings WHERE id=? AND id<>'issuer'
+        ON CONFLICT(id) DO UPDATE SET credential=excluded.credential, result=excluded.result
+        RETURNING id,credential,result,created
+      `).bind(r.id, Date.now(), r.credential))) : [];
+      const saved = batches.flatMap(batch => batch.results);
       return json({ saved: saved.length, records: saved });
     }
     return json({ error: '지원하지 않는 요청' }, 400);
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('record_credential_conflict')) return json({ error: '접수 ID가 다른 증명정보에 사용됐습니다.' }, 409);
     return json({ error: '서버 처리 실패. 로컬 DB 초기화와 준비 상태를 확인하세요.' }, 500);
   }
 }
