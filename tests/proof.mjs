@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {keys,sign,check} from '../lib/proof.ts';
+const issuer=await keys(),device=await keys(),now=Date.now();
+const credential=await sign({id:'TEST',name:'테스트',deviceKey:device.publicKey,issued:now,expires:now+3600000},issuer.privateKey);
+const trust={publicKey:issuer.publicKey,prepared:now},nonce=crypto.randomUUID(),response=await sign({id:'TEST',nonce},device.privateKey);
+const run=(c=credential,r=response,t=trust,n=nonce,time=Date.now(),seen=new Set(),task='visit')=>check(c,r,t,n,time,seen,task);
+assert((await run()).every(x=>x.ok));
+const c=structuredClone(credential);c.payload.name='변조';assert(!(await run(c))[0].ok);
+assert(!(await run(credential,response,{...trust,publicKey:(await keys()).publicKey}))[0].ok);
+assert(!(await run(credential,response,trust,'새 요청'))[1].ok);
+assert(!(await run(credential,response,trust,nonce,Date.now(),new Set([nonce])))[1].ok);
+assert(!(await run(credential,response,trust,nonce,now+3600001))[2].ok);
+assert(!(await run(credential,response,{...trust,prepared:now-960000}))[3].ok);
+assert(!(await run(credential,response,trust,nonce,Date.now(),new Set(),'loan'))[4].ok);
+assert(!(await run(credential,response,trust,nonce,now-86400000))[5].ok);
+console.log('PASS: normal, tamper, untrusted key, wrong nonce, replay, expiry, stale preparation, forbidden task, clock anomaly (9)');
