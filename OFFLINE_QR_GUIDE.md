@@ -1,0 +1,113 @@
+# 오프라인 재실행 · 두 기기 QR 시연 가이드
+
+대상: `codex/offline-qr-upgrade`, 기준 `7579cb3dad12fe90666310cd88c3e580de334746`. 기능 변경은 이 새 worktree에만 있으며 Commit/Push/배포하지 않았다. 현재 작업 폴더는 `C:\Users\USER\Documents\GitHub\mobileid-sinbun-offline-qr`이다. 원격 Clone만으로 아직 이 로컬 변경을 받을 수 없다.
+
+## Windows 실행
+
+Node 24, pnpm 11.25.0, Chrome 또는 Edge 일반 프로필을 권장한다. 시크릿 모드에서는 저장 수명/기능이 다를 수 있다.
+
+```powershell
+pnpm.cmd install --frozen-lockfile
+pnpm.cmd db:local
+pnpm.cmd test
+pnpm.cmd typecheck
+pnpm.cmd lint
+pnpm.cmd build
+pnpm.cmd start
+```
+
+화면/API: **http://127.0.0.1:8788/**. `dev`의 5174은 코드 편집용이며 Service Worker 오프라인 화면 준비는 **build/start에서만** 지원한다. 실행 중 build하지 말고 서버 종료 → build → start 순서를 지킨다. 가상 기관과 P1의 DB 귀속 보호 마이그레이션은 그대로 사용한다.
+
+## 최초 온라인 준비와 오프라인 재실행
+
+1. 이용자 기기: 가상 발급기관 탭에서 **테스트 신분증 발급**. 추출 불가능한 P-256 기기 CryptoKey와 테스트 신분증을 IndexedDB에 저장/재조회하고 키·신분증의 일치를 확인한다.
+2. 검증자 기기: 가상 발급기관 탭에서 **검증자 신뢰키 · 정책 준비**. **이용자에게 발급한 같은 가상 기관 서버**의 공개키가 필요하다. PC별 독립 D1을 별도로 준비하면 기관 키가 달라 정상 거절된다.
+3. 두 기기 모두 실험 개요에서 **화면 오프라인 준비**를 누르고 완료를 확인한다. QR 스캐너의 지연 로딩 파일까지 캐시한다. 신분증/기관 준비와 화면 캐시는 서로 다른 단계다.
+4. 같은 브라우저·같은 주소를 유지하고 통신을 차단한다. 화면 새로고침 또는 브라우저 종료 후 같은 주소를 다시 연다. 이미 캐시한 화면과 IndexedDB 데이터를 복원한다. 요청/응답 세션도 복원하되 이용자의 새로운 서명 동의는 다시 받는다.
+5. 기존 역할 전환 시연 또는 두 기기 QR 모드로 검증한다. 준비 15분/증명 만료 1시간의 기존 시험 정책은 재실행해도 초기화하지 않는다. QR 요청은 2분이다. 만료되면 온라인에서 다시 준비해야 한다.
+6. 연결 복구 후 연결 스위치를 온라인으로 바꾸고 복구·기록에서 **상태 재확인 · 기록 동기화**를 실행한다. D1의 현재 상태로 판정을 갱신한다. 검증자에게 이용자 개인키나 자체 발급 신분증은 없어도 된다.
+
+처음부터 준비하지 않은 신분증/신뢰키/웹앱은 오프라인에서 생성·다운로드할 수 없다. 브라우저를 닫는 것은 지원하지만 PC/휴대전화의 저장소 삭제를 복구하는 기능은 아니다. 전원 단절 직전 디스크 쓰기나 OS 강제 종료의 모든 상황을 보장하지 않는다.
+
+## 물리적 두 기기를 위한 HTTPS
+
+휴대전화의 `localhost`나 `127.0.0.1`은 **휴대전화 자신**을 가리킨다. PC의 localhost 서버를 가리키지 않는다. `http://192.168...` 평문 주소는 카메라·Web Crypto·Service Worker의 보안 컨텍스트 조건을 충족하지 못한다.
+
+이 프로젝트는 **고정된 로컬 8788 서버 앞의 HTTPS 프록시**를 제공한다. 외부 배포/터널/Cloudflare 계정 연결은 하지 않는다. 평소에는 127.0.0.1만 사용하고, 두 기기 준비 시 PC의 사설 LAN IPv4를 명시해 바인딩한다.
+
+PC와 휴대전화가 같은 Wi-Fi에 연결된 상태에서 PC의 IPv4를 확인한다. 다음 `192.168.0.20`은 예시이므로 실제 PC 주소로 바꾼다. 모바일 AP의 기기 간 통신 차단과 Windows 방화벽도 해당 PC/포트 통신을 허용해야 한다. 방화벽/인증서 저장소를 이 작업에서 자동 변경하지 않았다.
+
+신뢰된 개발 인증서는 [mkcert 공식 안내](https://github.com/FiloSottile/mkcert)를 따른다. 설치/로컬 CA 신뢰 작업은 기기 소유자가 수행한다. 예:
+
+```powershell
+# mkcert 설치 후, 이 PC의 개발 CA를 신뢰하는 경우에만 실행
+mkcert -install
+New-Item -ItemType Directory -Force .sites-runtime/tls
+mkcert -key-file .sites-runtime/tls/demo-key.pem -cert-file .sites-runtime/tls/demo-cert.pem 192.168.0.20 localhost 127.0.0.1
+mkcert -CAROOT
+```
+
+휴대전화에도 출력된 CA 디렉터리의 **rootCA.pem 공개 인증서**를 신뢰하도록 설치해야 한다. iOS/Android의 사용자 CA 신뢰 절차는 OS에 따라 다르다. **rootCA-key.pem 및 demo-key.pem은 휴대전화나 GitHub로 공유하지 않는다.** 단순 경고 무시가 카메라/SW를 정상 지원한다는 보장은 없다. CA 인증서 설치 및 실제 휴대전화의 신뢰 처리는 미검증이다.
+
+터미널 두 개:
+
+```powershell
+# 터미널 A
+pnpm.cmd start
+# 터미널 B
+pnpm.cmd start:https -- 192.168.0.20
+```
+
+두 기기에서 **https://192.168.0.20:8443/** 에 접속하고, 주소/인증서 경고 없이 준비한다. HTTP 8788과 HTTPS 8443은 다른 origin이므로 저장소/키/캐시를 공유하지 않는다. 실제 시연에 사용할 HTTPS 주소에서 **처음부터 발급·신뢰키·화면 준비를 모두** 완료한다.
+
+네트워크 완전 단절 뒤에는 두 기기가 화면/준비 정보를 자체 저장소에서 읽고 카메라로만 QR을 교환한다. 카메라 스캔에는 PC 서버 연결이 필요 없다. 복구·동기화 때는 다시 같은 가상 기관 서버에 연결한다. WAN만 끊고 Wi-Fi를 유지하면 localhost/LAN 서버는 계속 접근 가능할 수 있으므로 ‘서버도 접근 불가’와 ‘외부 인터넷만 단절’을 구분해 발표한다.
+
+## 실제 QR 시연 순서
+
+1. 두 기기에서 **두 기기 QR 인증** 탭을 연다. 검증자는 ‘이 기기는 검증자’, 이용자는 ‘이 기기는 이용자’를 선택한다.
+2. 검증자가 **새 요청 QR 생성**. 랜덤 nonce/세션/검증자 ID, 방문 접수 목적, 발행·만료 시각을 표시한다.
+3. 이용자가 **카메라로 요청 QR 스캔**. 식별자·목적·만료를 확인한다. 요청자 표시는 자체 생성 식별자이며 공식 기관 신원 인증이 아니다.
+4. 이용자가 체크박스 동의 후 **승인하고 응답 QR 생성**. 기기 키가 요청 전체의 중요한 필드에 서명한다. 개인키 원문은 QR/localStorage에 넣지 않는다.
+5. 검증자가 **카메라로 응답 QR 스캔**. 서버 호출 없이 기관 서명/기기 서명/원래 nonce·세션·검증자·목적·시각/준비 정보/증명 만료를 검사한다.
+6. 성공하면 IndexedDB의 사용 요청 표시와 미동기화 접수를 **한 트랜잭션**에 저장한다. 새로고침/브라우저 재실행/다른 탭에서도 같은 요청의 중복 접수는 거절한다.
+7. 연결 복구 후 복구·기록에서 동기화하고 서버 판정을 확인한다. 오프라인 서명 검증으로 최신 정지 상태를 알 수 없고 제한 접수는 출입 승인이 아니다.
+
+카메라 권한 거절/카메라 없음/사용 중/HTTPS 오류는 화면에 표시한다. 초점·밝기·거리·QR 전체/여백을 확인하고 재시도한다. QR 사진 파일(5MB 이하)을 읽거나 보조 JSON 입력을 사용할 수도 있다. 사진/JSON 시험은 **물리 카메라 스캔 성공의 증거가 아니다.** QR 데이터는 UTF-8 1500 bytes로 제한하며 비지원 버전/종류/개인키 포함 공개키/과대 데이터를 거절한다.
+
+## 데이터 구조 v1
+
+요청: `{v:1,type:'ansim-request',sessionId,nonce,verifierId,purpose:'visit',issuedAt,expiresAt}`. 수명은 최대 120초, 미래 시각 오차 2초. 요청은 자체 생성되며 검증자 신원 서명은 없다.
+
+응답: `{v:1,type:'ansim-response',credential,response}`. credential은 기존 기관 서명 payload+signature. response는 기기 서명 payload+signature이며 payload에 `id,nonce,sessionId,verifierId,purpose,requestIssued,requestExpires`를 모두 결합한다. 응답에서 기관 신뢰키를 가져와 신뢰하지 않으며, 검증자가 온라인에서 준비한 공개키만 사용한다. 실제 신분증 포맷/정부 API와 호환을 주장하지 않는다.
+
+## 저장소와 보안 한계
+
+| 저장소 | 저장 내용 | 한계 |
+|---|---|---|
+| Cache Storage | 공개 앱 셸, JS/CSS, QR 스캐너, manifest | API/신분증/개인키를 캐시하지 않음. 캐시 삭제 시 오프라인 화면 없음 |
+| IndexedDB | 테스트 신분증, 비추출 CryptoKey, 준비 공개키/정책, QR/기존 요청·응답, 사용 요청, 접수 | 같은 origin/브라우저/프로필에 한정. 삭제/기기 분실/손상 시 복구 불가 |
+| localStorage | 기존 접수 목록 호환 표시/이전 기록 이관 | 개인키·신분증·QR 응답을 넣지 않음. 권위 저장소는 IndexedDB |
+| 로컬 D1 | 기관 테스트 키, 발급 active/stopped, 복구 접수 판정 | 발급/동기화에 서버 필요. 기관 키는 기존처럼 테스트 DB의 평문 JWK |
+
+CryptoKey의 비추출 속성은 하드웨어 보안 저장소/생체인증이 아니다. 같은 origin의 악성 스크립트/XSS는 키를 내보내지 않고도 서명할 수 있다. 브라우저/OS/개발 서버/물리 기기 자체를 신뢰하는 가상 데이터 PoC다. 저장소/프로필을 통째로 복제하거나 삭제하면 재사용 차단의 전제도 깨진다. 키가 없거나 손상되면 복원 성공을 표시하지 않고 온라인 재발급을 요구한다.
+
+준비 공개키와 정책은 테스트 서버에서 받아 저장하지만 별도 인증서 체인/서명된 정책/정지 목록 배포가 없다. OS 시계 조작을 신뢰 시각으로 방어하지 못한다. 개인키 백업/다른 브라우저 이동/다른 기기 복구는 지원하지 않는다. 여러 탭의 사용 요청/접수 트랜잭션은 공유하지만 화면 목록이 실시간으로 완전히 동기화되는 공동 작업 UI는 아니다.
+
+## 자동 검사와 미검증 범위
+
+```powershell
+pnpm.cmd test
+pnpm.cmd typecheck
+pnpm.cmd lint
+pnpm.cmd build
+# start 실행 중 별도 터미널
+pnpm.cmd test:integration
+# 기존 Chrome 도구 설치 방식은 README 참고
+pnpm.cmd test:browser
+pnpm.cmd test:offline-qr
+pnpm.cmd test:offline-qr -- http://127.0.0.1:8788 msedge
+```
+
+`test:offline-qr`는 독립적인 **지속 브라우저 프로필 두 개**를 만들고 최초 준비 → 브라우저 offline → reload → 프로세스 종료/재실행 → QR 캔버스 이미지 생성/스캔 → 재사용·변조·다른 세션 차단 → 복구/D1을 검사한다. 실제 사진 QR 디코더를 쓰지만 기기 간 파일 전달은 자동화다. 가짜 개인정보/테스트 키만 생성하며 .sites-runtime/qa에 결과를 남긴다.
+
+Chrome/Edge Windows의 실제 결과 및 버전은 [OFFLINE_QR_RESULT.md](OFFLINE_QR_RESULT.md)에 기록한다. 실제 두 휴대전화 카메라, Android/iOS, Safari/Firefox, 인증서 사용자 설치, 물리 회선/기기 전원 단절은 미검증이다. 모바일 플랫폼에서 IndexedDB CryptoKey 복제/영속성과 저장소 제거 정책을 별도로 확인해야 한다. 미지원이면 안전한 추출 가능 키 저장으로 자동 후퇴하지 않고 오류를 표시한다.

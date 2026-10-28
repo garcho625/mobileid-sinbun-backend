@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { keys, sign, verify, check } from '../lib/proof.ts';
 
-const base = new URL(process.argv[2] || 'http://127.0.0.1:8787');
+const base = new URL(process.argv[2] || 'http://127.0.0.1:8788');
 assert(['127.0.0.1', 'localhost'].includes(base.hostname) && base.protocol === 'http:', 'Only loopback local servers may be tested');
 async function call(body, expected = 200) {
   const r = await fetch(new URL('/api/demo', base), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) });

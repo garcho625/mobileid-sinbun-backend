@@ -1,5 +1,8 @@
 # 로컬 독립 실행 구조
 
+> 아래는 기반 P1 버전의 범위/구축 기록입니다. 2026-10-28 기능 브랜치는 IndexedDB CryptoKey 저장·Service Worker 재실행·두 기기 QR을 추가했습니다. 최신 동작/지원 제한은 OFFLINE_QR_GUIDE.md와 OFFLINE_QR_RESULT.md를 기준으로 보세요.
+
+
 React/TypeScript 화면과 기존 Worker/D1을 재사용합니다. Python 백엔드와 별도 프런트엔드를 추가하지 않았습니다. 하나의 브라우저가 발급기관·지갑·검증자·복구 역할을 전환합니다.
 
 ```text

@@ -5,7 +5,7 @@ import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-const base = new URL(process.argv[2] || 'http://127.0.0.1:5173');
+const base = new URL(process.argv[2] || 'http://127.0.0.1:5174');
 assert(base.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(base.hostname));
 assert.equal(process.platform, 'win32', 'This regression must run on Windows/NTFS');
 const root = fileURLToPath(new URL('../', import.meta.url));

@@ -1,5 +1,8 @@
 # 로컬 독립 실행 구축 결과
 
+> 아래는 기반 P1 버전의 범위/구축 기록입니다. 2026-10-28 기능 브랜치는 IndexedDB CryptoKey 저장·Service Worker 재실행·두 기기 QR을 추가했습니다. 최신 동작/지원 제한은 OFFLINE_QR_GUIDE.md와 OFFLINE_QR_RESULT.md를 기준으로 보세요.
+
+
 > 아래는 최초 구축 당시 기록입니다. 기본 버전 7770e7d는 이후 GitHub의 codex/review-and-improve에 올라갔습니다. 아래의 Commit/Push 미수행·원격 미반영 설명은 당시 상태입니다. P1 수정 범위와 검증은 P1_FIX_RESULT.md, 최종 공유 준비와 Commit/Push 판단은 FINAL_SHARING_REVIEW.md 및 작업 완료 보고를 참조하세요.
 
 기존 UI·CSS·P-256 방식·Workers 진입점·D1 테이블/마이그레이션을 재사용해 Windows 개발/시연 환경을 구축했습니다. 현재 브랜치는 codex/review-and-improve이며 main 원본은 보존했습니다. GitHub origin도 변경하지 않았습니다. Commit/Push는 하지 않았습니다.

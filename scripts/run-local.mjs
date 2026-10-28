@@ -20,13 +20,17 @@ if (command === 'start') {
   try { built = JSON.parse(readFileSync('dist/server/wrangler.json', 'utf8')); }
   catch { throw Error('Run pnpm.cmd build before pnpm.cmd start.'); }
   if (built.name !== 'ansim-local-demo' || built.d1_databases?.some(db => db.database_id !== '00000000-0000-4000-8000-000000000000' || db.remote)) throw Error('Expected the local demo build. Run pnpm.cmd build.');
-  const result = spawnSync(process.execPath, ['--import', './scripts/sites-env.mjs', './node_modules/wrangler/bin/wrangler.js', 'dev', '--config', 'dist/server/wrangler.json', '--local', '--persist-to', '.wrangler/state', '--ip', '127.0.0.1', '--port', '8787', '--inspector-port', '0'], { stdio: 'inherit', env: process.env });
+  const result = spawnSync(process.execPath, ['--import', './scripts/sites-env.mjs', './node_modules/wrangler/bin/wrangler.js', 'dev', '--config', 'dist/server/wrangler.json', '--local', '--persist-to', '.wrangler/state', '--ip', '127.0.0.1', '--port', '8788', '--inspector-port', '0'], { stdio: 'inherit', env: process.env });
   if (result.error) throw result.error;
   process.exit(result.status ?? 1);
 }
 const vite = await import('vite');
 const config = { configFile: path.join(projectRoot, 'vite.local.config.ts') };
-if (command === 'build') await (await vite.createBuilder(config)).buildApp();
+if (command === 'build') {
+  await (await vite.createBuilder(config)).buildApp();
+  const { buildOfflineManifest } = await import('./build-offline.mjs');
+  buildOfflineManifest(projectRoot);
+}
 else {
   const server = await vite.createServer(config);
   await server.listen();

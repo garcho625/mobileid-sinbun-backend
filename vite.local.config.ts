@@ -9,7 +9,7 @@ export default defineConfig(async () => {
   return {
     envDir: ".sites-runtime/empty-env",
     server: {
-      host: "127.0.0.1", port: 5173, strictPort: true,
+      host: "127.0.0.1", port: 5174, strictPort: true,
       fs: { deny: [".env", ".env.*", ".dev.vars", ".dev.vars.*", "**/.git/**", "**/.wrangler/**", "**/.sites-runtime/**", "**/*.{pem,key,jwk}"] },
       watch: { ignored: ["**/.sites-runtime/**", "**/.wrangler/**"] },
     },

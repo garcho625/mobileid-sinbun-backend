@@ -1,5 +1,8 @@
 # 공모전 로컬 시연
 
+> 아래는 기반 P1 버전의 범위/구축 기록입니다. 2026-10-28 기능 브랜치는 IndexedDB CryptoKey 저장·Service Worker 재실행·두 기기 QR을 추가했습니다. 최신 동작/지원 제한은 OFFLINE_QR_GUIDE.md와 OFFLINE_QR_RESULT.md를 기준으로 보세요.
+
+
 README의 설치 → db:local → build → start를 완료하고 http://127.0.0.1:8787 에 접속합니다. 시연 중 같은 주소·브라우저 탭을 사용합니다.
 
 1. 가상 발급기관에서 테스트 신분증을 발급하고 검증자 신뢰키·정책을 준비합니다.

@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 
 const modulePath = process.env.ANSIM_PLAYWRIGHT_MODULE;
 const { chromium } = await import(modulePath ? pathToFileURL(modulePath).href : new URL('../.sites-runtime/browser-tools/node_modules/playwright/index.mjs', import.meta.url).href);
-const base = new URL(process.argv[2] || 'http://127.0.0.1:8787');
+const base = new URL(process.argv[2] || 'http://127.0.0.1:8788');
 assert(['127.0.0.1', 'localhost'].includes(base.hostname) && base.protocol === 'http:');
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
