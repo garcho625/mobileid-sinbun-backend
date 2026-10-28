@@ -30,9 +30,13 @@ export function encodeQr(value: QrRequest | QrResponse) {
 export function parseQr(text: string, type: 'ansim-request'): QrRequest;
 export function parseQr(text: string, type: 'ansim-response'): QrResponse;
 export function parseQr(text: string, type: 'ansim-request' | 'ansim-response') {
+  if(!text.trim())throw Error('QR 전체 데이터를 붙여 넣으세요. 세션 ID만으로는 인증할 수 없습니다.');
+  if(identifier(text.trim()))throw Error('세션 ID만 입력했습니다. QR 전체 데이터 복사로 복사한 중괄호 { } 전체를 붙여 넣으세요. 세션 ID만으로는 인증할 수 없습니다.');
   if (new TextEncoder().encode(text).length > QR_MAX_BYTES) throw Error('QR 데이터가 너무 큽니다.');
   let value: unknown;
   try { value = JSON.parse(text); } catch { throw Error('올바른 안심 이어가기 QR이 아닙니다.'); }
+  if(object(value)&&value.type==='ansim-request'&&type==='ansim-response')throw Error('검증자가 만든 요청 QR입니다. 이용자 기기의 요청 QR 읽기에 넣으세요. 여기는 이용자가 만든 응답 QR을 검증하는 곳입니다.');
+  if(object(value)&&value.type==='ansim-response'&&type==='ansim-request')throw Error('이용자가 만든 응답 QR입니다. 검증자 기기의 응답 QR 검증에 넣으세요. 여기는 검증자가 만든 요청 QR을 읽는 곳입니다.');
   if (type === 'ansim-request' ? !validRequest(value) : !validResponse(value)) throw Error('QR 종류·버전·형식이 맞지 않습니다. 개인키가 포함된 QR은 허용하지 않습니다.');
   return value as QrRequest | QrResponse;
 }

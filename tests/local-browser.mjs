@@ -14,7 +14,7 @@ page.on('pageerror', e => errors.push(e.message));
 let requests = 0;
 let offlineApiRequests;
 page.on('request', r => { if (new URL(r.url()).pathname === '/api/demo') requests++; });
-const tab = name => page.getByRole('button', { name: new RegExp(name) }).click();
+const tab = name => page.locator('aside').getByRole('button', { name: new RegExp(name) }).click();
 const notice = text => page.getByRole('status').filter({ hasText: text }).waitFor();
 const local = () => page.evaluate(() => JSON.parse(localStorage.getItem('ansim-demo-records-v1') || '[]'));
 const records = () => page.evaluate(async () => (await (await fetch('/api/demo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'records' }) })).json()).records);
@@ -87,7 +87,7 @@ try {
   const fresh = await browser.newContext();
   const freshPage = await fresh.newPage();
   await freshPage.goto(base.origin, { waitUntil: 'networkidle' });
-  await freshPage.getByRole('button', { name: /복구 · 기록/ }).click();
+  await freshPage.locator('aside').getByRole('button', { name: /복구 · 기록/ }).click();
   await freshPage.getByText('복구 확인 · 상태 일치', { exact: true }).first().waitFor();
   const restored = await freshPage.evaluate(() => JSON.parse(localStorage.getItem('ansim-demo-records-v1') || '[]'));
   assert(restored.some(r => r.id === pending.id), 'Fresh browser must restore D1 records');

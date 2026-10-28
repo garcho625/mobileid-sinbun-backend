@@ -18,6 +18,7 @@ self.addEventListener('install', event => {
         await cache.put(url.pathname, r);
       }
     } catch (e) { await caches.delete(installingCache); throw e; }
+    await cache.put('/offline-assets.json', Response.json(manifest));
     await self.skipWaiting();
   })());
 });
@@ -33,11 +34,20 @@ self.addEventListener('activate', event => {
 });
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
-  if (event.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/') || ['/sw.js','/offline-assets.json'].includes(url.pathname)) return;
   if (event.request.mode === 'navigate' && url.pathname === '/') {
     event.respondWith((async () => {
+      // Online reloads must show the current UI; retain the prepared shell as
+      // fallback for offline/restarted browsers and stalled local connections.
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      try {
+        const live = await fetch(event.request, { signal: controller.signal });
+        if (live.ok) return live;
+      } catch { /* The explicitly prepared shell is the offline fallback. */ }
+      finally { clearTimeout(timeout); }
       const cached = await caches.match('/');
-      return cached || fetch(event.request);
+      return cached || Response.error();
     })());
   } else if (url.pathname !== '/') {
     event.respondWith((async () => (await caches.match(url.pathname)) || fetch(event.request))());

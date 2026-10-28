@@ -104,3 +104,22 @@ export async function verifierId() {
     tx.onabort = tx.onerror = () => reject(tx.error);
   });
 }
+
+// Reset this device's current practice only. Keep receipts, replay protection,
+// verifier identity and the app shell; never delete the database or server data.
+export async function resetPractice(): Promise<string[]> {
+  const db = await database();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['state', 'records'], 'readwrite');
+    const state = tx.objectStore('state');
+    for (const key of ['wallet','trust','legacy-interaction','qr-request','holder-request','qr-response','guide-mode','guide-receipt']) state.delete(key);
+    let history: string[] = [];
+    const request = tx.objectStore('records').getAllKeys();
+    request.onsuccess = () => {
+      history = request.result.map(String);
+      state.put(history, 'guide-history-ids');
+    };
+    tx.oncomplete = () => resolve(history);
+    tx.onabort = tx.onerror = () => reject(tx.error ?? Error('초기화하지 못했습니다. 기존 기록은 유지됩니다.'));
+  });
+}

@@ -18,6 +18,8 @@ export function buildOfflineManifest(root) {
   for (const f of files) hash.update(relative(dir, f)).update(readFileSync(f));
   hash.update(readFileSync(join(root, 'public/sw.js')));
   const assets = ['/', ...files.map(f => '/' + relative(dir, f).split(sep).join('/'))];
-  writeFileSync(join(dir, 'offline-assets.json'), JSON.stringify({ version: hash.digest('hex').slice(0, 20), assets }));
+  const version=hash.digest('hex').slice(0,20);
+  writeFileSync(join(dir,'offline-assets.json'),JSON.stringify({version,assets}));
+  writeFileSync(join(dir,'sw.js'),readFileSync(join(root,'public/sw.js'),'utf8')+'\n// App build: '+version+'\n');
   console.log(`Offline app shell: ${assets.length} resources, API excluded`);
 }
